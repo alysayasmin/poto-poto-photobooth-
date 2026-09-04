@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  --cream: #f7f2ea;
+  --paper: #fffdf9;
+  --pink: #f4b8c5;
+  --pink-light: #f9dce3;
+  --red: #c94c4c;
+  --red-dark: #a83b3b;
+  --ink: #2f2926;
+  --muted: #7b6f69;
+  --line: #d9cec3;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--cream); }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 10% 8%, rgba(244, 184, 197, .3), transparent 22rem),
+    var(--cream);
+  font-family: var(--font-sans), sans-serif;
+}
+
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; }
+
+::selection { background: var(--pink); color: var(--ink); }
+
+.display { font-family: var(--font-display), serif; }
+
+.paper-shadow { box-shadow: 6px 7px 0 rgba(47, 41, 38, .11); }
+
+@keyframes floaty {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50% { transform: rotate(-1deg) translateY(-7px); }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.floaty { animation: floaty 5s ease-in-out infinite; }
+.pop-in { animation: pop-in .25s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
