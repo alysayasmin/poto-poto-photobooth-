@@ -53,26 +53,26 @@ export function Camera({ videoRef, disabled = false }: CameraProps) {
   }, [videoRef]);
 
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-[1.4rem] border border-[#2f2926] bg-[#2f2926]">
+    <div className="relative aspect-[4/3] overflow-hidden border-4 border-[#080808] bg-[#111] shadow-[inset_0_0_28px_#000]">
       <video
         ref={videoRef}
         playsInline
         muted
         aria-label="Live camera preview"
-        className={`h-full w-full scale-x-[-1] object-cover transition-opacity duration-500 ${ready && !disabled ? "opacity-100" : "opacity-35"}`}
+        className={`h-full w-full scale-x-[-1] object-cover grayscale contrast-125 transition-opacity duration-500 ${ready && !disabled ? "opacity-100" : "opacity-25"}`}
       />
       {!ready && !error && (
-        <div className="absolute inset-0 grid place-items-center text-center text-sm text-white/80">
-          <div><span className="mb-3 block text-3xl">📸</span>Warming up the camera…</div>
+        <div className="absolute inset-0 grid place-items-center text-center text-xs font-bold uppercase tracking-[.22em] text-white/65">
+          <div><span className="mb-4 block h-px w-20 bg-white/40" />Initializing camera</div>
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 grid place-items-center bg-[#2f2926] px-8 text-center text-sm leading-6 text-white">
-          <div><span className="mb-3 block text-3xl">♡</span>{error}</div>
+        <div className="absolute inset-0 grid place-items-center bg-[#111] px-8 text-center text-sm leading-6 text-white">
+          <div><span className="mb-3 block text-2xl">!</span>{error}</div>
         </div>
       )}
       {ready && !disabled && (
-        <span className="absolute left-4 top-4 rounded-full bg-[#fffdf9]/90 px-3 py-1.5 text-xs font-bold text-[#2f2926] shadow-sm">live ✦</span>
+        <span className="absolute left-3 top-3 border border-white/30 bg-black/75 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[.2em] text-white"><i className="mr-2 inline-block size-1.5 rounded-full bg-[#b72018]" />Camera ready</span>
       )}
     </div>
   );
