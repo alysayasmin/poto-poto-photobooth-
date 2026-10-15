@@ -25,6 +25,8 @@ export async function DELETE(request: Request, context: Context) {
     const frame = await findFrame(request, context);
     // Unpublish first so a file deletion failure remains visible and retryable in admin.
     frame.isPublished = false; await frame.save();
-    await deleteFrameFile(frame.imageUrl); await frame.deleteOne(); return json({ ok: true });
+    await deleteFrameFile(frame); await frame.deleteOne(); return json({ ok: true });
   } catch (error) { return apiError(error); }
 }
+
+export const runtime = "nodejs";

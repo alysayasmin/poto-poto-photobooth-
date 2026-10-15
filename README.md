@@ -1,37 +1,62 @@
 # poto-poto
 
-## Development
+Next.js App Router / TypeScript / Tailwind / MongoDB-Mongoose / Cloudinary.
 
-1. `npm install`
-2. Copy `.env.example` to `.env.local`, set a strong `ADMIN_PASSWORD`, `ADMIN_EMAIL`, and a working `MONGODB_URI`.
-3. Start MongoDB, then `npm run dev`.
-4. Open `/admin/login`, upload a frame, and publish it. Open `/booth` to select it.
+## Setup and deployment
 
-The admin has one environment-configured account; no registration. Sessions last eight hours, use random opaque HttpOnly/SameSite=Strict cookies, and are stored as hashes in MongoDB. Logout revokes the session. Changing credentials invalidates existing sessions. Cookies require HTTPS in production. Login throttling is in-process (10 attempts per 15-minute window); use a shared limiter before deploying multiple instances.
+1. Use Node.js 22 or newer. Run `npm ci`.
+2. Copy `.env.example` to `.env.local` without overwriting existing credentials. Fill all seven keys. No key is public:
+   - `MONGODB_URI`: MongoDB connection URI, including the intended database. Allow the deployment network in Atlas and grant the app read/write/index permissions for that database.
+   - `ADMIN_EMAIL`: the single admin login email.
+   - `ADMIN_PASSWORD`: a unique password of at least 16 characters.
+   - `ADMIN_SESSION_SECRET`: an independent random secret of at least 32 characters; generate with `openssl rand -hex 32`.
+   - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`: all must belong to the same Cloudinary product environment.
+3. Run `npm run preflight`. This reads configuration, pings MongoDB/Cloudinary, and checks existing frame metadata. It never prints secret values or modifies records. Resolve every FAIL.
+4. Run `npm run test`, `npm run lint`, `npx tsc --noEmit`, and `npm run build`.
+5. In Vercel select the Next.js preset, the repository root, and a supported Node.js version >=22. Add the same seven environment variables separately to the intended Preview and Production environments. Do not put secrets in `NEXT_PUBLIC_*`. Configuration checked on a developer machine is not proof that Vercel has the same settings.
+6. Deploy a Preview and verify the complete flow on HTTPS before promoting to Production. Environment changes require a new deployment.
 
-## PNG contract
+Development: `npm run dev`. Admin entry: `/admin` or `/admin/login`; management: `/admin/frames`. Public booth: `/booth`.
 
-All overlays are **720 × 2224 px**, matching the original canvas. Four photo windows are **624 × 468 px**, at x=48 and y=48, 534, 1020, 1506. Keep those windows transparent. Maximum upload: 5 MB. Uploads validate PNG signature, decoding, dimensions, and transparency in each slot, and re-encode the image. No per-frame slot coordinates are stored.
+## Storage and PNG contract
 
-Photos retain the existing monochrome treatment. The selected PNG is drawn last, above the photos and original footer. Put opaque artwork over the footer area if you want to replace the original branding. Original remains available even if the database is unavailable. The frame picker refreshes every 15 seconds and when the window regains focus.
+All new PNGs are validated and uploaded **from the server to Cloudinary**. There is no local-filesystem upload fallback. MongoDB stores the HTTPS delivery URL and `cloudinaryPublicId`; the latter is required to remove the corresponding asset reliably.
 
-## Storage and endpoints
+Maximum file size is **4 MiB** (4,194,304 bytes), with another 64 KiB allowed for multipart overhead. This stays below Vercel's 4.5 MB function payload ceiling. Oversized input is rejected on the client and while streaming the server body.
 
-Development PNGs are stored in `public/uploads/frames/`, with unique generated filenames. Metadata lives in MongoDB. `src/lib/frame-storage.ts` is the storage adapter to replace for future object storage. This local disk setup is intended for a single persistent development server, not ephemeral/serverless hosting. Back up both MongoDB and uploaded files. Draft/unpublished PNG URLs remain public if known; only published metadata is listed publicly.
+All overlays are **720 × 2224 px**, matching the original canvas. Four transparent photo windows are **624 × 468 px**, at x=48 and y=48, 534, 1020, 1506. Uploads check MIME, PNG signature, decoding, dimensions, transparency in each slot, and re-encode a static RGBA PNG. Filenames are generated; original filenames are never trusted. Unique slugs allow repeated display names.
 
-- `GET /api/frames`: published frames, newest first; no cache.
-- `POST /api/admin/login`, `POST /api/admin/logout`
-- `GET/POST /api/admin/frames`
-- `PATCH/DELETE /api/admin/frames/:id`
+The selected overlay is loaded with `crossOrigin="anonymous"` before assigning its URL, then drawn after photos. Cloudinary delivery must allow CORS for PNG export. Images use `<img>` and the browser canvas, so `next/image` remotePatterns are not applicable; image security has not been disabled.
 
-All admin frame endpoints require a session. Mutations also require a matching Origin header. Delete unpublishes first, removes the PNG, then deletes metadata; failed file removal stays retryable in admin.
+If an older database contains `/uploads/frames/...` URLs or missing asset IDs, re-upload those frames to Cloudinary and remove the legacy records before deployment. `preflight` detects these cases. Deleting a legacy local record does not unlink a local file; manually clean up its old file after migration.
 
-## Checks
+## Authentication and data safety
 
-`npm run lint` and `npm run build`.
+Only one environment-configured admin account; no register/roles. Opaque 256-bit session tokens are stored as hashes in MongoDB, expire after eight hours, and use HttpOnly / SameSite=Strict / Secure-in-production cookies. Logout revokes the database session; credential/secret changes invalidate existing sessions. Session signing fingerprints use the server-only secret.
 
-Manual smoke test: login → upload draft → verify absence in booth → publish → select in booth → capture four photos → download PNG → unpublish → delete → logout. Check invalid PNG, oversized files, wrong dimensions, failed login, and unauthenticated admin requests. Webcam testing requires camera permission on localhost or HTTPS.
+All admin mutations require a matching Origin. The login throttle uses atomic MongoDB counters shared across serverless instances (10 attempts per 15-minute fixed window, including successful logins). Session and limiter collections use expiry indexes; queries independently enforce time boundaries.
 
-Verified during implementation: lint, TypeScript, production build, and API integration against a disposable MongoDB (authentication/Origin guards, invalid PNG/size/dimensions/transparency, draft filtering, publish/unpublish, file serving, deletion, and rejection of a revoked session). Browser webcam/canvas end-to-end testing remains manual because the sandbox could not launch Chrome.
+MongoDB uses a hot-reload-safe per-instance cache, a pool capped at five connections, timeouts, and retry after connection failure. Models reuse registered Mongoose models. The unique slug index is awaited before an upload writes metadata. Existing duplicate slugs must be resolved first.
 
-Dependency audit: the existing Next.js 16.3.4 and lint dependency tree report 8 advisories (1 critical, 7 high). Framework versions were kept unchanged in this feature update; resolve these before public deployment.
+Public API lists only published frames newest first and sends `Cache-Control: no-store`. The picker refreshes every 15 seconds and on focus, with loading/empty/error feedback. Original is a built-in fallback, not a hardcoded replacement for database frames.
+
+Delete first unpublishes a frame, deletes the Cloudinary asset (with CDN invalidation), and then removes metadata. A failed asset delete keeps the record retryable. Failed metadata creation attempts asset cleanup; ambiguous upload failures also attempt cleanup using the preassigned asset ID. If cleanup itself fails, reconcile the logged public ID in Cloudinary. MongoDB and Cloudinary do not share an atomic transaction.
+
+## Routes
+
+- Public pages: `/`, `/booth`
+- Admin pages: `/admin`, `/admin/login`, `/admin/frames`
+- Public API: `GET /api/frames`
+- Admin API: `POST /api/admin/login`, `POST /api/admin/logout`, `GET/POST /api/admin/frames`, `PATCH/DELETE /api/admin/frames/:id`
+
+All database/storage API routes run on Node.js. The temporary `/api/test-db` endpoint was removed. Server-only imports guard secrets, Mongoose, and Cloudinary from client imports. Responses never include exception stacks or credentials.
+
+## Validation
+
+- `npm test`: real PNG decoding/validation with mocked Cloudinary upload/delete/failure cleanup, and schema validation.
+- `npm run preflight`: read-only checks against configured external services. This intentionally exits nonzero while credentials are missing or rejected.
+- `npm audit --omit=dev`: runtime dependency audit. Full audit separately includes lint tooling.
+
+Preview smoke test: login → upload draft → verify absence in booth → publish → select → allow webcam → capture four photos → inspect/export PNG → retake → unpublish → delete → logout. Verify mirrored preview, stream release after leaving the booth, and camera-denied feedback on a real browser. These browser tests must not be inferred from a successful build or mocked storage tests.
+
+See `PREDEPLOYMENT_AUDIT.md` for the latest audit result and remaining blockers.

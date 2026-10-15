@@ -1,14 +1,19 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import "server-only";
+import { adminConfig } from "@/lib/server-env";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { connectDB } from "@/lib/mongodb";
 import { AdminSession } from "@/models/AdminSession";
 export const SESSION_COOKIE = "poto_admin";
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
-const credentials = (token: string) => hash(JSON.stringify([process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD, token]));
+const credentials = (token: string) => {
+  const { email, password, secret } = adminConfig();
+  return createHmac("sha256", secret).update(JSON.stringify([email, password, token])).digest("hex");
+};
 export function validCredentials(email: unknown, password: unknown) {
-  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) throw new Error("Admin credentials are not configured.");
-  const emailOK = timingSafeEqual(Buffer.from(hash(typeof email === "string" ? email : "")), Buffer.from(hash(process.env.ADMIN_EMAIL)));
-  const passwordOK = timingSafeEqual(Buffer.from(hash(typeof password === "string" ? password : "")), Buffer.from(hash(process.env.ADMIN_PASSWORD)));
+  const config = adminConfig();
+  const emailOK = timingSafeEqual(Buffer.from(hash(typeof email === "string" ? email : "")), Buffer.from(hash(config.email)));
+  const passwordOK = timingSafeEqual(Buffer.from(hash(typeof password === "string" ? password : "")), Buffer.from(hash(config.password)));
   return emailOK && passwordOK;
 }
 const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" as const, path: "/" };

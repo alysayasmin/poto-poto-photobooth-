@@ -23,7 +23,7 @@ export function PhotoStrip({ photos, complete = false, frame }: PhotoStripProps)
     });
 
     const overlay = frame ? new Image() : null;
-    if (overlay) overlay.src = frame!.imageUrl;
+    if (overlay) { overlay.crossOrigin = "anonymous"; overlay.src = frame!.imageUrl; }
     Promise.all([...images.map((image) => image.decode()), ...(overlay ? [overlay.decode()] : [])]).then(() => {
       if (cancelled || !canvasRef.current) return;
       const canvas = canvasRef.current;

@@ -6,13 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "preflight": "node scripts/preflight.mjs",
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "cloudinary": "^2.11.0",
     "mongoose": "^9.11.2",
-    "next": "16.3.4",
+    "next": "^16.3.8",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
@@ -21,8 +25,12 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "^16.3.8",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

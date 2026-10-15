@@ -8,3 +8,5 @@ export async function GET() {
     return json(await Frame.find({ isPublished: true }).select("name slug imageUrl isPublished createdAt").sort({ createdAt: -1 }).lean());
   } catch (error) { return apiError(error); }
 }
+
+export const runtime = "nodejs";

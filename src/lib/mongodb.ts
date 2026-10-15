@@ -1,13 +1,26 @@
+import "server-only";
 import mongoose from "mongoose";
-const globalDb = globalThis as typeof globalThis & { mongoPromise?: Promise<typeof mongoose> };
+import { requiredEnv } from "@/lib/server-env";
+const cached = global.mongoose || (global.mongoose = { conn: null, promise: null });
 export async function connectDB() {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error("MONGODB_URI is not configured.");
-  if (!globalDb.mongoPromise) {
-    globalDb.mongoPromise = mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 }).catch((error) => {
-      globalDb.mongoPromise = undefined;
-      throw error;
+  if (cached.conn && mongoose.connection.readyState === 1) return cached.conn;
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(requiredEnv("MONGODB_URI"), {
+      maxPoolSize: 5,
+      minPoolSize: 0,
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 20000,
+      bufferCommands: false,
     });
   }
-  return globalDb.mongoPromise;
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (error) {
+    cached.conn = null;
+    throw error;
+  } finally {
+    cached.promise = null;
+  }
 }

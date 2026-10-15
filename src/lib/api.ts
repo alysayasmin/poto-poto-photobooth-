@@ -1,3 +1,4 @@
+import "server-only";
 import { isAdmin } from "@/lib/admin-auth";
 export class ApiError extends Error { constructor(message: string, public status = 400) { super(message); } }
 export function sameOrigin(request: Request) {
@@ -12,7 +13,9 @@ export function json(data: unknown, status = 200) {
 }
 export function apiError(error: unknown) {
   if (error instanceof ApiError) return json({ error: error.message }, error.status);
-  console.error("Admin/frame operation failed:", error instanceof Error ? error.message : "Unknown error");
+  if (error && typeof error === "object" && "code" in error && error.code === 11000) return json({ error: "Frame slug already exists. Please retry." }, 409);
+  // Avoid logging driver/provider messages that may contain connection credentials.
+  console.error("Admin/frame operation failed:", error instanceof Error ? error.name : "Unknown error");
   return json({ error: "Something went wrong. Please try again." }, 500);
 }
 // Bound the body while streaming, even if Content-Length is absent or dishonest.
