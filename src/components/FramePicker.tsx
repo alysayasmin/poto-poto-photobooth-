@@ -2,21 +2,31 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
 import type { FrameItem } from "@/lib/frame-layout";
-export function FramePicker({ selected, onSelect }: { selected: FrameItem | null; onSelect: (frame: FrameItem | null) => void }) {
-  const [frames, setFrames] = useState<FrameItem[]>([]); const [error, setError] = useState(false); const [loading, setLoading] = useState(true);
+export function FramePicker({ selected, onSelect }: { selected: FrameItem | null; onSelect: (frame: FrameItem) => void }) {
+  const [frames, setFrames] = useState<FrameItem[]>([]);
+  const [error, setError] = useState(false); const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     async function refresh() {
       try {
-        const response = await fetch("/api/frames", { cache: "no-store" }); if (!response.ok) throw new Error();
+        const response = await fetch("/api/frames", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Frames unavailable");
         const data: FrameItem[] = await response.json();
-        if (active) { setFrames(data); setError(false); if (selected && !data.some(frame => frame._id === selected._id)) onSelect(null); }
-      } catch { if (active) setError(true); }
-      finally { if (active) setLoading(false); }
+        if (!controller.signal.aborted) { setFrames(data.filter(frame => frame.isPublished === true)); setError(false); }
+      } catch { if (!controller.signal.aborted) setError(true); }
+      finally { if (!controller.signal.aborted) setLoading(false); }
     }
-    void refresh(); const timer = window.setInterval(refresh, 15000);
+    void refresh();
+    const timer = window.setInterval(refresh, 15000);
     window.addEventListener("focus", refresh);
-    return () => { active = false; clearInterval(timer); window.removeEventListener("focus", refresh); };
-  }, [selected, onSelect]);
-  return <section className="mx-auto mt-6 max-w-5xl text-white"><h2 className="mb-3 text-sm font-bold tracking-widest">CHOOSE YOUR FRAME</h2><div className="flex flex-wrap gap-3"><button type="button" aria-pressed={!selected} onClick={() => onSelect(null)} className={`w-28 border p-3 text-xs ${!selected ? "border-white bg-white/20" : "border-white/30"}`}><span className="mx-auto mb-2 grid h-24 w-10 place-items-center bg-[#f4f2ec] text-black">4<br />shots</span>Original</button>{frames.map(frame => <button type="button" key={frame._id} aria-pressed={selected?._id === frame._id} onClick={() => onSelect(frame)} className={`w-28 border p-3 text-xs ${selected?._id === frame._id ? "border-white bg-white/20" : "border-white/30"}`}><img src={frame.imageUrl} alt="" className="mx-auto mb-2 h-24 w-10 bg-zinc-300 object-contain" /><span className="break-words">{frame.name}</span></button>)}</div>{loading && <p role="status" className="mt-2 text-xs">Loading frames…</p>}{!loading && !error && frames.length === 0 && <p className="mt-2 text-xs">No published frames yet. Use Original for now.</p>}{error && <p role="status" className="mt-2 text-xs">Extra frames are unavailable. Original frame is still available.</p>}</section>;
+    return () => { controller.abort(); clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [attempt]);
+  return <section aria-label="Published frames" className="text-white">
+    {loading && <p role="status">Loading frames…</p>}
+    {error ? <div role="alert"><p>Frames could not be loaded. Please try again.</p><button className="flow-button mt-4" onClick={() => { setLoading(true); setError(false); setAttempt(value => value + 1); }}>Retry</button></div> : <>
+      {!loading && frames.length === 0 && <p role="status">No frames are available yet. Please check back soon.</p>}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">{frames.map(frame => <button type="button" key={frame._id} aria-pressed={selected?._id === frame._id} onClick={() => onSelect(frame)} className={`rounded border-2 p-4 text-sm transition hover:bg-white/15 ${selected?._id === frame._id ? "border-white bg-white/20" : "border-white/30"}`}><img src={frame.imageUrl} alt={`${frame.name} photo strip frame`} className="mx-auto mb-3 h-56 max-w-full bg-zinc-300 object-contain" /><span className="break-words">{frame.name}</span>{selected?._id === frame._id && <span className="mt-1 block text-xs">Selected</span>}</button>)}</div>
+    </>}
+  </section>;
 }

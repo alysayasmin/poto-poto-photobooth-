@@ -92,3 +92,20 @@ button { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Shared flow controls; leave the landing machine design intact. */
+button:focus-visible, a:focus-visible { outline: 3px solid #fff; outline-offset: 4px; box-shadow: 0 0 0 6px #111; }
+.flow-page { min-height: 100vh; padding: 24px 16px; color: white; background: var(--red-dark); }
+.flow-button { border: 1px solid white; background: #111; color: white; padding: 12px 24px; font-weight: 700; text-align: center; }
+.flow-button:hover { background: #3b1715; }
+.flow-button:disabled { cursor: wait; opacity: .5; }
+@media print {
+  @page { size: auto; margin: 10mm; }
+  html, body { background: white !important; color: black !important; }
+  body * { visibility: hidden !important; }
+  .result-page .photo-strip-output, .result-page .photo-strip-output canvas { visibility: visible !important; }
+  .result-page .photo-strip-output { position: absolute; top: 0; left: 0; width: 60mm; max-width: none; break-inside: avoid; }
+  .result-page .photo-strip-output canvas { display: block; width: 60mm; height: auto; border: 0; box-shadow: none; }
+  .result-page, .result-panel { min-height: 0; margin: 0; padding: 0; border: 0; box-shadow: none; background: white; }
+  .result-page header, .result-page button, .result-page a { display: none !important; }
+}

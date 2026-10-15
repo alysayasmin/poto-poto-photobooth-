@@ -16,7 +16,7 @@ Next.js App Router / TypeScript / Tailwind / MongoDB-Mongoose / Cloudinary.
 5. In Vercel select the Next.js preset, the repository root, and a supported Node.js version >=22. Add the same seven environment variables separately to the intended Preview and Production environments. Do not put secrets in `NEXT_PUBLIC_*`. Configuration checked on a developer machine is not proof that Vercel has the same settings.
 6. Deploy a Preview and verify the complete flow on HTTPS before promoting to Production. Environment changes require a new deployment.
 
-Development: `npm run dev`. Admin entry: `/admin` or `/admin/login`; management: `/admin/frames`. Public booth: `/booth`.
+Development: `npm run dev`. Admin entry: `/admin` or `/admin/login`; management: `/admin/frames`. Public flow: `/` → `/frames` → `/booth` → `/filter` → `/result`.
 
 ## Storage and PNG contract
 
@@ -38,7 +38,7 @@ All admin mutations require a matching Origin. The login throttle uses atomic Mo
 
 MongoDB uses a hot-reload-safe per-instance cache, a pool capped at five connections, timeouts, and retry after connection failure. Models reuse registered Mongoose models. The unique slug index is awaited before an upload writes metadata. Existing duplicate slugs must be resolved first.
 
-Public API lists only published frames newest first and sends `Cache-Control: no-store`. The picker refreshes every 15 seconds and on focus, with loading/empty/error feedback. Original is a built-in fallback, not a hardcoded replacement for database frames.
+Public API lists only published frames newest first and sends `Cache-Control: no-store`. The picker refreshes every 15 seconds and on focus, with loading/empty/error feedback. Only published database frames can start a session; no frames produces an empty state. The selected frame is carried in browser state without refetching it during capture/filter/result.
 
 Delete first unpublishes a frame, deletes the Cloudinary asset (with CDN invalidation), and then removes metadata. A failed asset delete keeps the record retryable. Failed metadata creation attempts asset cleanup; ambiguous upload failures also attempt cleanup using the preassigned asset ID. If cleanup itself fails, reconcile the logged public ID in Cloudinary. MongoDB and Cloudinary do not share an atomic transaction.
 
@@ -60,3 +60,15 @@ All database/storage API routes run on Node.js. The temporary `/api/test-db` end
 Preview smoke test: login → upload draft → verify absence in booth → publish → select → allow webcam → capture four photos → inspect/export PNG → retake → unpublish → delete → logout. Verify mirrored preview, stream release after leaving the booth, and camera-denied feedback on a real browser. These browser tests must not be inferred from a successful build or mocked storage tests.
 
 See `PREDEPLOYMENT_AUDIT.md` for the latest audit result and remaining blockers.
+
+## Client photobooth flow
+
+START opens `/frames`. Selecting a published frame clears an old capture session and opens `/booth`. The existing mirrored camera captures four original JPEG images; after the fourth shot the camera is unmounted and its tracks are stopped, then `/filter` opens. Original, B&W, Warm, Cool, Vintage, and High Contrast use a shared code-defined mapping. Preview and result both use the same canvas compositor; each photo is filtered independently, then the unfiltered PNG overlay and branding/date are drawn.
+
+`/result` offers PNG download, browser Print, Retake, and a link back to filter selection. Retake retains the frame, clears photos and capture date, resets the filter to Original, and opens `/booth`. Print CSS hides all controls and prints the strip at 60 mm wide with its original aspect ratio. Printer/page options are controlled by the browser; no physical printer integration is included.
+
+React Context lives in the `(photobooth)` route-group layout, outside the admin flow. Session state is restored from `sessionStorage` after hydration; route guards wait for restoration. Invalid or absent state redirects to the appropriate step. Photos never go to an API, MongoDB, or Cloudinary. If browser storage is blocked or full, navigation still works in memory and a visible warning explains that refresh recovery is unavailable. Session storage is temporary to the browser tab (browser session-restore behavior may vary).
+
+Browsers without Canvas 2D filter support can use Original; other filters show an explicit export compatibility error instead of silently downloading an unfiltered image.
+
+Validation for the flow update: five automated tests pass; lint, TypeScript and production build pass. Browser interaction used an isolated test proxy supplying a synthetic camera and a fixture frame; neither was added to the application or its APIs. Desktop/mobile capture, filter switching, refresh, missing-state guards, retake, frame empty/error recovery, PNG generation and the print handler were exercised. The real OS print dialog/physical printer was not tested. Cloudinary credentials and MongoDB connectivity pass read-only preflight; no real user photos were created or uploaded.

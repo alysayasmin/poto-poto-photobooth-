@@ -36,9 +36,11 @@ export function Camera({ videoRef, disabled = false }: CameraProps) {
         if (videoElement) {
           videoElement.srcObject = stream;
           await videoElement.play();
-          setReady(true);
+          if (active) setReady(true);
         }
       } catch {
+        stream?.getTracks().forEach((track) => track.stop());
+        if (!active) return;
         setError("Camera access was blocked. Allow camera permission, then refresh and we’ll try again ♡");
       }
     }
@@ -59,7 +61,7 @@ export function Camera({ videoRef, disabled = false }: CameraProps) {
         playsInline
         muted
         aria-label="Live camera preview"
-        className={`h-full w-full scale-x-[-1] object-cover grayscale contrast-125 transition-opacity duration-500 ${ready && !disabled ? "opacity-100" : "opacity-25"}`}
+        className={`h-full w-full scale-x-[-1] object-cover transition-opacity duration-500 ${ready && !disabled ? "opacity-100" : "opacity-25"}`}
       />
       {!ready && !error && (
         <div className="absolute inset-0 grid place-items-center text-center text-xs font-bold uppercase tracking-[.22em] text-white/65">
